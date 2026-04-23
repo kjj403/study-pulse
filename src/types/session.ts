@@ -10,6 +10,8 @@ export interface NcsSessionRecord {
   questionCount: number
   solvedCount: number
   durationSec: number
+  /** 문항 인덱스별 풀이 소요(초). 미체크는 null */
+  problemDurationsSec?: Array<number | null>
 }
 
 export interface StudySessionRecord {

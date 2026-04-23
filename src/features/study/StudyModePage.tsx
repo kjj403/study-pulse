@@ -17,6 +17,9 @@ import { DEFAULT_STUDY_PRESETS } from './studyPresets'
 
 type Phase = 'focus' | 'break'
 
+const inputClass =
+  'mt-1.5 w-full rounded-xl border border-white/[0.08] bg-[#0a0c12] px-3 py-2.5 text-[#e8eaf0] outline-none transition placeholder:text-[#4b5263] focus:border-[#5b8cff]/50 focus:ring-2 focus:ring-[#5b8cff]/20'
+
 export function StudyModePage() {
   const soundEnabled = useSettingsStore((s) => s.soundEnabled)
   const vibrateEnabled = useSettingsStore((s) => s.vibrateEnabled)
@@ -27,7 +30,8 @@ export function StudyModePage() {
   const [subject, setSubject] = useState('')
   const [tagsRaw, setTagsRaw] = useState('')
   const [phase, setPhase] = useState<Phase>('focus')
-  const [running, setRunning] = useState(false)
+  const [active, setActive] = useState(false)
+  const [paused, setPaused] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState(
     DEFAULT_STUDY_PRESETS[0].focusMin * 60,
   )
@@ -49,29 +53,31 @@ export function StudyModePage() {
   const phaseSeconds =
     phase === 'focus' ? preset.focusMin * 60 : preset.breakMin * 60
   const phaseLabel = phase === 'focus' ? '집중' : '휴식'
+  const ticking = active && !paused
 
   const phaseStartedAt = useRef<number | null>(null)
+  const pauseBegunAt = useRef<number | null>(null)
   const completionSavedRef = useRef(false)
 
   useEffect(() => {
-    if (!running) {
+    if (!active) {
       setSecondsLeft(
         phase === 'focus' ? preset.focusMin * 60 : preset.breakMin * 60,
       )
     }
-  }, [preset.focusMin, preset.breakMin, phase, running])
+  }, [preset.focusMin, preset.breakMin, phase, active])
 
   useEffect(() => {
     if (secondsLeft > 0) completionSavedRef.current = false
   }, [secondsLeft])
 
   useEffect(() => {
-    if (!running || secondsLeft <= 0) return
+    if (!ticking || secondsLeft <= 0) return
     const id = window.setTimeout(() => {
       setSecondsLeft((s) => Math.max(0, s - 1))
     }, 1000)
     return () => window.clearTimeout(id)
-  }, [running, secondsLeft])
+  }, [ticking, secondsLeft])
 
   const persistPhase = useCallback(
     async (endedAt: number, phaseSnapshot: Phase) => {
@@ -99,7 +105,7 @@ export function StudyModePage() {
   )
 
   useEffect(() => {
-    if (!running || secondsLeft !== 0) return
+    if (!ticking || secondsLeft !== 0) return
     if (completionSavedRef.current) return
     completionSavedRef.current = true
     void (async () => {
@@ -123,7 +129,7 @@ export function StudyModePage() {
       }
     })()
   }, [
-    running,
+    ticking,
     secondsLeft,
     phase,
     persistPhase,
@@ -138,14 +144,34 @@ export function StudyModePage() {
     setPhase('focus')
     setSecondsLeft(preset.focusMin * 60)
     phaseStartedAt.current = Date.now()
-    setRunning(true)
+    pauseBegunAt.current = null
+    setPaused(false)
+    setActive(true)
   }
 
-  const handlePause = async () => {
-    if (!running) return
+  const handlePauseTimer = () => {
+    if (!active || paused) return
+    pauseBegunAt.current = Date.now()
+    setPaused(true)
+  }
+
+  const handleResumeTimer = () => {
+    if (!active || !paused || pauseBegunAt.current == null) return
+    const gap = Date.now() - pauseBegunAt.current
+    if (phaseStartedAt.current) {
+      phaseStartedAt.current += gap
+    }
+    pauseBegunAt.current = null
+    setPaused(false)
+  }
+
+  const handleStopAndSave = async () => {
+    if (!active) return
     const ended = Date.now()
     await persistPhase(ended, phase)
-    setRunning(false)
+    setActive(false)
+    setPaused(false)
+    pauseBegunAt.current = null
     phaseStartedAt.current = null
     setSecondsLeft(
       phase === 'focus' ? preset.focusMin * 60 : preset.breakMin * 60,
@@ -164,54 +190,55 @@ export function StudyModePage() {
         />
       )}
       <Card>
-        <h2 className="text-lg font-semibold">프리셋</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <h2 className="text-lg font-semibold tracking-tight text-white">루틴 설정</h2>
+        <p className="mt-1 text-sm text-[#7d8699]">프리셋·과목을 고르고 세션을 시작하세요.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
           {DEFAULT_STUDY_PRESETS.map((p) => (
             <button
               key={p.id}
               type="button"
-              disabled={running}
+              disabled={active}
               onClick={() => {
                 setUseCustom(false)
                 setPresetId(p.id)
               }}
               className={cn(
-                'rounded-full px-3 py-1.5 text-sm ring-1 transition',
+                'rounded-xl px-3 py-2 text-left text-sm transition disabled:opacity-45',
                 !useCustom && presetId === p.id
-                  ? 'bg-[#5b8cff]/20 text-white ring-[#5b8cff]'
-                  : 'bg-[#10131c] text-[#c9cfde] ring-[#252a3a] hover:bg-[#151a26]',
+                  ? 'bg-[#5b8cff]/18 text-white ring-1 ring-[#5b8cff]/55 shadow-[0_0_24px_-10px_rgba(91,140,255,0.45)]'
+                  : 'border border-white/[0.06] bg-[#0d1018] text-[#b4bccf] hover:border-white/[0.1] hover:bg-[#121722]',
               )}
             >
-              {p.label}{' '}
-              <span className="text-[#8b92a8]">
+              <span className="font-semibold">{p.label}</span>
+              <span className="mt-0.5 block text-xs text-[#8b92a8]">
                 {p.focusMin}/{p.breakMin}분
               </span>
             </button>
           ))}
           <button
             type="button"
-            disabled={running}
+            disabled={active}
             onClick={() => setUseCustom(true)}
             className={cn(
-              'rounded-full px-3 py-1.5 text-sm ring-1 transition',
+              'rounded-xl px-3 py-2 text-left text-sm transition disabled:opacity-45',
               useCustom
-                ? 'bg-[#5b8cff]/20 text-white ring-[#5b8cff]'
-                : 'bg-[#10131c] text-[#c9cfde] ring-[#252a3a] hover:bg-[#151a26]',
+                ? 'bg-[#5b8cff]/18 text-white ring-1 ring-[#5b8cff]/55'
+                : 'border border-white/[0.06] bg-[#0d1018] text-[#b4bccf] hover:border-white/[0.1] hover:bg-[#121722]',
             )}
           >
-            커스텀
+            <span className="font-semibold">커스텀</span>
           </button>
         </div>
         {useCustom && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="text-sm text-[#8b92a8]">
+            <label className="text-xs font-medium text-[#8b92a8]">
               집중(분)
               <input
                 type="number"
                 min={1}
-                className="mt-1 w-full rounded-lg border border-[#252a3a] bg-[#10131c] px-3 py-2 text-[#e8eaf0]"
+                className={inputClass}
                 value={custom.focusMin}
-                disabled={running}
+                disabled={active}
                 onChange={(e) =>
                   setCustom((c) => ({
                     ...c,
@@ -220,14 +247,14 @@ export function StudyModePage() {
                 }
               />
             </label>
-            <label className="text-sm text-[#8b92a8]">
+            <label className="text-xs font-medium text-[#8b92a8]">
               휴식(분)
               <input
                 type="number"
                 min={1}
-                className="mt-1 w-full rounded-lg border border-[#252a3a] bg-[#10131c] px-3 py-2 text-[#e8eaf0]"
+                className={inputClass}
                 value={custom.breakMin}
-                disabled={running}
+                disabled={active}
                 onChange={(e) =>
                   setCustom((c) => ({
                     ...c,
@@ -239,36 +266,43 @@ export function StudyModePage() {
           </div>
         )}
         <div className="mt-5 grid gap-3">
-          <label className="text-sm text-[#8b92a8]">
+          <label className="text-xs font-medium text-[#8b92a8]">
             과목
             <input
-              className="mt-1 w-full rounded-lg border border-[#252a3a] bg-[#10131c] px-3 py-2 text-[#e8eaf0]"
+              className={inputClass}
               placeholder="예: 운영체제"
               value={subject}
-              disabled={running}
+              disabled={active}
               onChange={(e) => setSubject(e.target.value)}
             />
           </label>
-          <label className="text-sm text-[#8b92a8]">
+          <label className="text-xs font-medium text-[#8b92a8]">
             태그 (쉼표 구분)
             <input
-              className="mt-1 w-full rounded-lg border border-[#252a3a] bg-[#10131c] px-3 py-2 text-[#e8eaf0]"
+              className={inputClass}
               placeholder="SQL, 정처기"
               value={tagsRaw}
-              disabled={running}
+              disabled={active}
               onChange={(e) => setTagsRaw(e.target.value)}
             />
           </label>
         </div>
         <p className="mt-3 text-xs text-[#8b92a8]">
-          집중이 끝나면 자동으로 휴식으로 넘어가고, 휴식 후 다시 집중으로 이어집니다.
+          집중이 끝나면 자동으로 휴식으로 넘어가고, 휴식 후 다시 집중으로 이어집니다. 일시정지
+          중에는 시간이 멈추고 기록에도 잡히지 않습니다.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <Button disabled={running} onClick={handleStart}>
+          <Button disabled={active} onClick={handleStart}>
             시작
           </Button>
-          <Button variant="ghost" disabled={!running} onClick={() => void handlePause()}>
-            일시정지 및 기록
+          <Button variant="ghost" disabled={!active || paused} onClick={handlePauseTimer}>
+            일시정지
+          </Button>
+          <Button variant="ghost" disabled={!active || !paused} onClick={handleResumeTimer}>
+            재개
+          </Button>
+          <Button variant="danger" disabled={!active} onClick={() => void handleStopAndSave()}>
+            종료 및 기록
           </Button>
         </div>
       </Card>
@@ -278,7 +312,9 @@ export function StudyModePage() {
             <p className="text-xs uppercase tracking-widest text-[#8b92a8]">
               현재 세션
             </p>
-            <p className="text-lg font-semibold">{phaseLabel}</p>
+            <p className="text-lg font-semibold">
+              {paused ? `${phaseLabel} · 일시정지` : phaseLabel}
+            </p>
             <p className="text-sm text-[#8b92a8]">
               완료한 집중 라운드:{' '}
               <span className="text-[#e8eaf0]">{cycles}</span>
@@ -296,18 +332,30 @@ export function StudyModePage() {
           </span>
         </div>
         <div className="mt-6 text-center">
-          <p className="font-mono text-5xl font-semibold tabular-nums">
+          <p
+            className={cn(
+              'font-mono text-5xl font-semibold tabular-nums',
+              paused ? 'text-[#9aa3b8]' : 'text-white',
+            )}
+          >
             {formatClock(secondsLeft)}
           </p>
           <p className="mt-2 text-sm text-[#8b92a8]">
-            {phase === 'focus'
-              ? `다음 휴식 ${preset.breakMin}분`
-              : `다음 집중 ${preset.focusMin}분`}
+            {paused
+              ? '재개하면 이어집니다'
+              : phase === 'focus'
+                ? `다음 휴식 ${preset.breakMin}분`
+                : `다음 집중 ${preset.focusMin}분`}
           </p>
         </div>
-        <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-[#1b2130]">
+        <div className="mt-6 h-2.5 w-full overflow-hidden rounded-full bg-black/40 ring-1 ring-white/[0.06]">
           <div
-            className="h-full rounded-full bg-[#5b8cff] transition-all"
+            className={cn(
+              'h-full rounded-full transition-all',
+              paused
+                ? 'bg-[#3d4454]'
+                : 'bg-gradient-to-r from-[#4f7ae8] to-[#5b8cff]',
+            )}
             style={{
               width: `${phaseSeconds ? Math.min(100, Math.round(((phaseSeconds - secondsLeft) / phaseSeconds) * 100)) : 0}%`,
             }}

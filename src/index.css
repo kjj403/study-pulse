@@ -20,7 +20,12 @@ body,
 body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, sans-serif;
-  background: var(--color-sp-bg);
+  background-color: var(--color-sp-bg);
+  background-image:
+    radial-gradient(ellipse 100% 70% at 50% -30%, rgba(91, 140, 255, 0.16), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 100% 0%, rgba(139, 92, 246, 0.09), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(56, 189, 248, 0.06), transparent 45%);
+  background-attachment: fixed;
   color: #e8eaf0;
   -webkit-font-smoothing: antialiased;
 }
