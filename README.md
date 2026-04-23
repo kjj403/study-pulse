@@ -3,6 +3,8 @@
 **만능 타이머** — 시험 제한 시간 연습(NCS 스타일), 뽀모도로형 공부 타이머, 통계·백업을 한 번에 다루는 웹 앱입니다.  
 백엔드 없이 **브라우저만**으로 동작하며, 학습 기록은 **IndexedDB**에 저장됩니다.
 
+**배포 주소:** [https://study-pulse-nine.vercel.app/](https://study-pulse-nine.vercel.app/)
+
 ---
 
 ## 주요 기능
@@ -126,6 +128,8 @@ npm run lint       # ESLint
 ---
 
 ## 배포 (Vercel)
+
+**프로덕션:** [https://study-pulse-nine.vercel.app/](https://study-pulse-nine.vercel.app/)
 
 이 저장소는 GitHub **`kjj403/study-pulse`** 와 연결되어 있으면, `main` 브랜치에 **push**할 때마다 Vercel이 자동 빌드·배포합니다.
 
